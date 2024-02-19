@@ -1,0 +1,332 @@
+--lab 5 my
+
+BEGIN
+   dbms_output.put_line('Hello, World!');
+END;
+/
+
+DECLARE
+   message  varchar2(20):= 'Hello, World!';
+BEGIN
+   dbms_output.put_line(message);
+END;
+/
+
+---lab 4 my
+
+--drop type exchanges_varray force;
+
+--drop type address_t force;
+
+--drop type stock_t force;
+
+--drop type investments_t force;
+
+--drop type investment_nested force;
+
+--drop type clients_t force;
+
+--drop table stock;
+
+--drop table clients;
+
+create type exchanges_varray as varray(3) of varchar(40)
+/
+create type address_t as object(
+    streetNo char(10),
+    streetName varchar(20),
+    suburb varchar(20),
+    states varchar(20),
+    pin varchar(20)
+)
+/
+    
+create type stock_t as object(
+    company char(10),
+    currentPrice number(6,4),
+    exchangeTraded exchanges_varray,
+	lastDividend number(4,2),
+    eps number(4,2) 
+)
+/
+    
+create type investments_t as object(
+    company REF stock_t,
+    purchasePrice number(6,4),
+    purchaseDates date,
+    qty number(6)
+)
+/
+    
+create type investment_nested as table of investments_t
+/
+
+create type clients_t as object (
+    name varchar(20),
+    address address_t,
+    investment investment_nested
+)
+/
+
+create table stock of stock_t(
+    constraint stock_pk primary Key (company)
+)
+/
+create table clients of clients_t(
+    constraint client_pk primary key(name)
+)NESTED TABLE investment STORE as investment_tab
+/
+--ALTER TABLE investment_tab
+--ADD SCOPE FOR (company) of ref stock_t
+--/
+
+
+insert into stock values (stock_t('GM',60.00,exchanges_varray('NewYourk'),2.50,9.20));
+insert into stock values (stock_t('INFOSYS',45.00,exchanges_varray('NewYourk'),3.00,7.80)); 
+insert into stock values (stock_t('FORD',40.00,exchanges_varray('NewYourk'),2.00,8.50)); 
+insert into stock values (stock_t('INTEL',76.50,exchanges_varray('NewYourk','London'),5.00,12.40));
+insert into stock values (stock_t('IBM',70.00,exchanges_varray('NewYourk','London','Tokyo'),4.25,10.25));
+insert into stock values (stock_t('BHP',10.50,exchanges_varray('NewYourk','Sydney'),1.50,3.20));
+
+
+INSERT INTO clients VALUES (
+    clients_t('John Smith',
+        address_t('3', 'East Av', 'Bentley', 'WA', '6102'),
+        investment_nested(
+            investments_t((SELECT REF(s) FROM stock s WHERE s.company = 'BHP'), 12.00, TO_DATE('02-OCT-2001', 'DD-MON-YYYY'), 1000),
+            investments_t((SELECT REF(s) FROM stock s WHERE s.company = 'BHP'), 10.50, TO_DATE('08-JUN-2002', 'DD-MON-YYYY'), 2000),
+            investments_t((SELECT REF(s) FROM stock s WHERE s.company = 'IBM'), 58.00, TO_DATE('12-FEB-2000', 'DD-MON-YYYY'), 500),
+            investments_t((SELECT REF(s) FROM stock s WHERE s.company = 'IBM'), 65.00, TO_DATE('10-APR-2001', 'DD-MON-YYYY'), 1200),
+            investments_t((SELECT REF(s) FROM stock s WHERE s.company = 'INFOSYS'), 64.00, TO_DATE('11-AUG-2001', 'DD-MON-YYYY'), 1000)
+        )
+    )
+);
+
+
+insert into clients values(clients_t('Jill Brody',address_t('42','Bent st','perth','WA','6001'),
+    investment_nested(
+    	investments_t((select ref(s) from stock s where s.company='INTEL'),35.00,TO_DATE('30-JAN-2000', 'DD-MON-YYYY'),300 ),
+    	investments_t((select ref(s) from stock s where s.company='INTEL'),54.00,TO_DATE('30-JAN-2001', 'DD-MON-YYYY'),400 ),
+    	investments_t((select ref(s) from stock s where s.company='INTEL'),60.00,TO_DATE('02-OCT-2000', 'DD-MON-YYYY'),200 ),
+    	investments_t((select ref(s) from stock s where s.company='INTEL'),40.00,TO_DATE('05-OCT-1999', 'DD-MON-YYYY'),300 ),
+    	investments_t((select ref(s) from stock s where s.company='INTEL'),55.00,TO_DATE('12-DEC-2000', 'DD-MON-YYYY'),500 )
+    )));
+
+
+
+select distinct c.name, i.company.company,i.company.currentPrice,i.company.lastDividend,i.company.eps
+from clients c,table (c.investment) i
+/
+
+select c.name,i.company.company,sum(i.qty) as total_qty, sum(i.qty*i.purchasePrice)/sum (i.qty) as average_price
+from clients c, table(c.investment) i
+group by c.name,i.company.company
+/
+    
+select i.company.company,c.name,sum(i.qty)as number_of_shares, sum(i.qty*i.company.currentPrice) as current_value 
+from clients c, table (c.investment) i, table (i.company.exchangeTraded) e
+where e.column_value = 'NewYourk'
+group by i.company.company,c.name
+/
+    
+select c.name, sum(i.purchasePrice) as total_price
+from clients c, table(c.investment) i
+group by c.name
+/
+    
+select c.name, sum(i.qty*i.company.currentPrice)-sum(i.qty*i.purchasePrice) as profit
+from clients c, table(c.investment) i
+group by c.name
+/
+--extra--
+select c.name,i.company.company, sum(i.qty*i.company.currentPrice)-sum(i.qty*i.purchasePrice) as profit
+from clients c, table(c.investment) i
+group by c.name,i.company.company
+/
+-----
+
+---lab4---
+alter type stock_t
+add member function yield return float
+cascade
+/
+
+create or replace type body stock_t as
+member function yield return float is
+	begin
+		return((self.lastDividend/self.currentPrice)*100);
+	end;
+end;
+/
+--b--
+alter type stock_t
+add member function AUDtoUSD (rate float) return float
+cascade
+/
+
+create or replace type body stock_t as
+    member function yield return float is
+    begin
+    		return((self.lastDividend/self.currentPrice)*100);
+    end yield;
+
+	member function AUDtoUSD (rate float) return float is
+	begin 
+			return (rate*self.currentPrice);
+	end AUDtoUSD;
+end;
+/
+--c--
+
+alter type stock_t
+add member function no_of_trades return integer
+cascade
+/
+
+create or replace type body stock_t as
+    member function yield return float is
+    begin
+    		return((self.lastDividend/self.currentPrice)*100);
+    end yield;
+
+	member function AUDtoUSD (rate float) return float is
+	begin 
+			return (rate*self.currentPrice);
+	end AUDtoUSD;
+
+	member function no_of_trades return integer is
+    	temp integer;
+		begin
+            select count(e.column_value) into temp
+        	from table(self.exchangeTraded) e;
+        	return temp;
+	end no_of_trades;
+
+end;
+/
+
+--d--
+alter type clients_t
+add member function tot_purchase_val return float
+cascade
+/
+
+create or replace type body clients_t as
+	member function tot_purchase_val return float is
+    	temp float;
+		begin
+    		select sum(e.purchasePrice*e.qty) into temp
+    		from table(self.investment) e;
+    		return temp;
+		end tot_purchase_val;
+end;
+/
+--e--
+
+alter type clients_t
+add member function total_profit return float
+cascade
+/
+
+create or replace type body clients_t as
+    member function tot_purchase_val return float is
+    	temp float;
+		begin
+    		select sum(e.purchasePrice*e.qty) into temp
+    		from table(self.investment) e;
+    		return temp;
+		end tot_purchase_val;
+
+	member function total_profit return float is
+        temp float;
+		begin
+        	select ((i.company.currentPrice-i.purchasePrice)*i.qty) into temp
+        	from table(self.investment) i;
+        	return temp;
+		end total_profit;
+end;
+/
+
+--02--
+--samples--
+
+select s.company,s.yield() AS stock_yield
+from stock s;
+
+select  s.company, s.yield(), s.AUDtoUSD(100)
+from stock s;
+
+
+
+--a--
+select s.company,e.column_value,s.yield(),s.AUDtoUSD(0.74) as Price_in_USD
+from stock s,table(s.exchangeTraded) e
+/
+--b--
+
+select s.company,s.currentPrice,s.no_of_trades()
+from stock s
+where s.no_of_trades() > 1
+/
+--c--
+select c.name, e.company.company as Company_name,e.company.yield() as yield,
+    e.company.currentPrice as current_price,e.company.eps as Earning
+from clients c, table(c.investment) e
+/
+--d--
+select c.name, c.tot_purchase_val() as total_value
+from clients c
+/
+--e--
+
+select c.name, c.total_profit() as profit
+from clients c
+/
+
+---lab 5---
+--exercise 1
+    
+declare 
+	var_currentPrice number(6,4);
+
+begin
+	select s.currentPrice into var_currentPrice
+	from stock s
+	where s.company = 'IBM';
+
+	dbms_output.put_line('current price : - ' || var_currentPrice);
+end;
+/
+
+--exercise 2
+declare 
+	var_currentPrice number(6,4);
+	var_company char(10):= 'IBM';
+	message varchar2(40);
+begin
+    
+	select s.currentPrice into var_currentPrice
+	from stock s
+	where s.company = 'IBM';
+
+	if(var_currentPrice < 45) then
+        message := 'Current price is very low !';
+	elsif(45<= var_currentPrice and var_currentPrice < 55) then
+        message := '‘Current price is low !';
+	elsif(55<= var_currentPrice and var_currentPrice < 65) then
+        message := 'Current price is medium !';
+	elsif(65<= var_currentPrice and var_currentPrice < 75) then
+        message := 'Current price is medium high !';
+	else
+        message := 'Current price is high !';
+	end if;
+
+	dbms_output.put_line('stock states for '|| var_company || 'is' ||message);
+
+end;
+/
+
+--exersice 2--
+
+
+

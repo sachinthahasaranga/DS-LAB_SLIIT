@@ -1,0 +1,204 @@
+//Type Creation
+
+
+CREATE TYPE address_t AS OBJECT(
+
+	streetNumber INT,
+	streetName VARCHAR(20),
+	suburb VARCHAR2(50),
+	state VARCHAR2(50),
+	pin VARCHAR(10)
+	
+	
+
+);
+
+CREATE TYPE exchngArray AS VARRAY(10) OF VARCHAR2(50);
+
+CREATE TYPE stock_t AS OBJECT(
+
+	company_name VARCHAR2(20),
+	current_price NUMBER,
+	exchanges_traded exchngArray,
+	last_dividend NUMBER(4,2),
+	earning_per_share NUMBER(4,2)
+
+	
+);
+
+CREATE TYPE investment_t AS OBJECT(
+	company_name REF stock_t,
+	purchase_date DATE,
+	quantity NUMBER,
+	price NUMBER(4,2)
+	
+);
+
+CREATE TYPE investment_NT AS TABLE OF investment_t;
+
+CREATE TYPE client_t AS OBJECT(
+
+	cNo CHAR(4),
+	fName VARCHAR(10),
+	lName VARCHAR(10),
+	cAddress address_t,
+	investments investment_NT
+);
+
+
+
+
+
+
+//Table Creation
+
+CREATE TABLE stock OF stock_t(
+	CONSTRAINT PK_stock PRIMARY KEY (company_name)
+);
+
+CREATE TABLE client OF client_t(
+	CONSTRAINT PK_client PRIMARY KEY(cNo)
+)NESTED TABLE investments STORE AS investments_table;
+
+
+
+
+
+
+//Data Insert
+
+INSERT INTO stock VALUES( stock_t( 'BHP', 10.50, exchngArray( 'Sydney', 'New York' ), 1.50, 3.20 ) );
+INSERT INTO stock VALUES( stock_t( 'IBM', 70.00, exchngArray( 'New York', 'London', 'Tokyo' ), 4.25, 10.00 ) );
+INSERT INTO stock VALUES( stock_t( 'INTEL', 76.50, exchngArray( 'New York', 'London' ), 5.00, 12.40 ) );
+INSERT INTO stock VALUES( stock_t( 'FORD', 40.00, exchngArray( 'New York' ), 2.00, 8.50 ) );
+INSERT INTO stock VALUES( stock_t( 'GM', 60.00, exchngArray( 'New York' ), 2.50, 9.20 ) );
+INSERT INTO stock VALUES( stock_t( 'INFOSYS', 45.00, exchngArray( 'New York' ), 3.00, 7.80 ) );
+
+INSERT INTO client VALUES( 
+    client_t(
+        'C001', 
+        'John',
+        'Smith',
+        address_t(3, 'East Av', 'Bentley', 'WA', '6102'),
+        investment_NT( 
+            investment_t((SELECT REF(s) FROM stock s WHERE s.company_name = 'BHP'), TO_DATE('02-10-01', 'DD-MM-YY'), 1000, 12.00),
+            investment_t((SELECT REF(s) FROM stock s WHERE s.company_name = 'BHP'), TO_DATE('08-06-02', 'DD-MM-YY'), 2000, 10.50),
+            investment_t((SELECT REF(s) FROM stock s WHERE s.company_name = 'IBM'), TO_DATE('12-02-00', 'DD-MM-YY'), 500, 58.00),
+            investment_t((SELECT REF(s) FROM stock s WHERE s.company_name = 'IBM'), TO_DATE('10-04-01', 'DD-MM-YY'), 1200, 65.00),
+            investment_t((SELECT REF(s) FROM stock s WHERE s.company_name = 'INFOSYS'), TO_DATE('11-08-01', 'DD-MM-YY'), 1000, 64.00)
+        )
+    )
+);
+
+INSERT INTO client VALUES (
+    client_t(
+        'C002',
+        'Jill',
+        'Brody',
+        address_t(42, 'Bent St', 'Perth', 'WA', '6001'),
+        investment_NT(
+            investment_t((SELECT REF(s) FROM stock s WHERE company_name = 'INTEL'), TO_DATE('30/01/00', 'DD/MM/YY'), 300, 35.00),
+            investment_t((SELECT REF(s) FROM stock s WHERE company_name = 'INTEL'), TO_DATE('30/01/01', 'DD/MM/YY'), 400, 54.00),
+            investment_t((SELECT REF(s) FROM stock s WHERE company_name = 'INTEL'), TO_DATE('02/10/01', 'DD/MM/YY'), 200, 60.00),
+            investment_t((SELECT REF(s) FROM stock s WHERE company_name = 'FORD'), TO_DATE('05/10/99', 'DD/MM/YY'), 300, 40.00),
+            investment_t((SELECT REF(s) FROM stock s WHERE company_name = 'GM'), TO_DATE('12/12/00', 'DD/MM/YY'), 500, 55.50)
+        )
+    )
+);
+
+
+
+//Quarries
+
+
+a)
+SELECT
+    c.fName || ' ' || c.lName AS client_name,
+    i.company_name.company_name,
+    i.company_name.current_price,
+    i.company_name.last_dividend,
+    i.company_name.earning_per_share
+FROM
+    client c
+    CROSS JOIN TABLE(c.investments) i;
+
+
+b)
+SELECT
+    c.fName || ' ' || c.lName AS client_name,
+    i.company_name.company_name AS stock_name,
+    SUM(i.quantity) AS total_shares_held,
+    SUM(i.quantity * i.price) / SUM(i.quantity) AS avg_purchase_price
+FROM
+    client c
+    CROSS JOIN TABLE(c.investments) i
+GROUP BY
+    c.fName, c.lName, i.company_name.company_name;
+
+
+c)
+SELECT
+    s.company_name,
+    c.fName || ' ' || c.lName AS client_name,
+    i.quantity AS shares_held,
+    i.quantity * s.current_price AS current_value
+FROM
+    client c
+    CROSS JOIN TABLE(c.investments) i
+    JOIN stock_t s ON DEREF(i.company_name) = s;
+
+
+d)
+SELECT
+    c.fName || ' ' || c.lName AS client_name,
+    SUM(i.quantity * i.price) AS total_purchase_value
+FROM
+    client c
+    CROSS JOIN TABLE(c.investments) i
+GROUP BY
+    c.fName, c.lName;
+
+e)
+SELECT
+    c.fName || ' ' || c.lName AS client_name,
+    SUM(i.quantity * s.current_price) - SUM(i.quantity * i.price) AS book_profit_loss
+FROM
+    client c
+    CROSS JOIN TABLE(c.investments) i
+    JOIN stock s ON DEREF(i.company_name) = s
+GROUP BY
+    c.fName, c.lName;
+
+f)
+DELETE FROM TABLE(
+    SELECT c.investments
+    FROM client c
+    WHERE c.cNo = 'C001'
+) WHERE company_name.company_name = 'INFOSYS';
+
+
+DELETE FROM TABLE(
+    SELECT c.investments
+    FROM client c
+    WHERE c.cNo = 'C002'
+) WHERE company_name.company_name = 'GM';
+
+
+INSERT INTO TABLE(
+    SELECT c.investments
+    FROM client c
+    WHERE c.cNo = 'C001'
+) VALUES (
+    investment_t((SELECT REF(s) FROM stock s WHERE s.company_name = 'INFOSYS'), SYSDATE, 1000, 45.00)
+);
+
+INSERT INTO TABLE(
+    SELECT c.investments
+    FROM client c
+    WHERE c.cNo = 'C002'
+) VALUES (
+    investment_t((SELECT REF(s) FROM stock s WHERE s.company_name = 'GM'), SYSDATE, 500, 60.00)
+);
+
+
+

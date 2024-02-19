@@ -1,0 +1,162 @@
+Lab 02
+DS
+IT21194962
+Niyangoda S A N S H
+
+
+
+
+CREATE TYPE dept_t AS OBJECT(
+	deptno CHAR(3),
+	deptname VARCHAR2(36),
+	mgrno REF emp_t,
+	admrdept REF emp_t
+);
+
+CREATE TYPE emp_t AS OBJECT(
+       Empno  CHAR(6),
+       firstname VARCHAR2(12),
+       lastname VARCHAR2(15),
+       workdept REF dept_t,
+       sex CHAR(1),
+       birthday DATE,
+       salary NUMBER(8,2)
+ );
+
+
+
+CREATE TABLE ORDEPT OF dept_t(
+	deptno PRIMARY KEY  NOT NULL,
+	deptname NOT NULL
+	
+
+);
+
+CREATE TABLE OREMP OF emp_t(
+	empno PRIMARY KEY NOT NULL,
+	firstname NOT NULL,
+	lastname NOT NULL
+	
+);
+
+INSERT INTO OREMP VALUES( emp_t( 000010, 'Christine', 'Haas', NULL, 'F', TO_DATE( '14-AUG-53', 'DD/MON/YY' ) , 72750 ) );
+INSERT INTO OREMP VALUES( emp_t( 000020, 'Michael', 'Thompson', NULL, 'M', TO_DATE( '02-FEB-68', 'DD/MON/YY' ) , 61250 ) );
+INSERT INTO OREMP VALUES( emp_t( 000030, 'Sally', 'Kwan', NULL, 'F', TO_DATE( '11-MAY-71', 'DD/MON/YY' ) , 58250 ) );
+INSERT INTO OREMP VALUES( emp_t( 000060, 'Irving', 'Stern', NULL, 'M', TO_DATE( '07-JUL-65', 'DD/MON/YY' ) , 55555 ) );
+INSERT INTO OREMP VALUES( emp_t( 000070, 'Eva', 'Pulaski', NULL, 'F', TO_DATE( '26-MAY-73', 'DD/MON/YY' ) , 56170 ) );
+INSERT INTO OREMP VALUES( emp_t( 000050, 'John', 'Geyer', NULL, 'M', TO_DATE( '15-SEP-55', 'DD/MON/YY' ) , 60175 ) );
+INSERT INTO OREMP VALUES( emp_t( 000090, 'Eileen', 'Henderson', NULL, 'F', TO_DATE( '15-MAY-61', 'DD/MON/YY' ) , 49750 ) );
+INSERT INTO OREMP VALUES( emp_t( 000100, 'Theodore', 'Spenser', NULL, 'M', TO_DATE( '18-DEC-76', 'DD/MON/YY' ) , 46150 ) );
+
+
+INSERT INTO ORDEPT VALUES( dept_t( 'A00', 'SPIFFY COMPUTER SERVICE DIV.', NULL, NULL) );
+INSERT INTO ORDEPT VALUES( dept_t( 'B01', 'PLANNING', NULL, NULL ) );
+INSERT INTO ORDEPT VALUES( dept_t( 'C01', 'INFORMATION CENTER', NULL, NULL ) );
+INSERT INTO ORDEPT VALUES( dept_t( 'D01', 'DEVELOPMENT CENTER', NULL, NULL ) );
+
+
+
+
+UPDATE ORDEPT
+SET mgrno = ( SELECT REF(e) FROM OREMP e WHERE e.empno = 000010 )
+WHERE dept_t = 'A00';
+
+UPDATE ORDEPT
+SET mgrno = ( SELECT REF(e) FROM OREMP e WHERE e.empno = 000020 )
+WHERE deptno = 'B01';
+
+UPDATE ORDEPT
+SET mgrno = ( SELECT REF(e) FROM OREMP e WHERE e.empno = 000030 )
+WHERE deptno = 'C01';
+
+UPDATE ORDEPT
+SET mgrno = ( SELECT REF(e) FROM OREMP e WHERE e.empno = 000060 )
+WHERE deptno = 'D01';
+
+
+
+
+
+
+UPDATE OREMP
+SET workdept = ( SELECT REF(d) FROM ORDEPT d WHERE d.deptno = 'A00')
+WHERE empno = 000010 ;
+
+UPDATE OREMP
+SET workdept = ( SELECT REF(d) FROM ORDEPT d WHERE d.deptno = 'B01')
+WHERE empno = 000020;
+
+UPDATE OREMP
+SET workdept = ( SELECT REF(d) FROM ORDEPT d WHERE d.deptno = 'C01')
+WHERE empno = 000030;
+
+UPDATE OREMP
+SET workdept = ( SELECT REF(d) FROM ORDEPT d WHERE d.deptno = 'D01')
+WHERE empno = 000060;
+
+UPDATE OREMP
+SET workdept = ( SELECT REF(d) FROM ORDEPT d WHERE d.deptno = 'D01')
+WHERE empno = 000070;
+
+UPDATE OREMP
+SET workdept = ( SELECT REF(d) FROM ORDEPT d WHERE d.deptno = 'C01')
+WHERE empno = 000050;
+
+UPDATE OREMP
+SET workdept = ( SELECT REF(d) FROM ORDEPT d WHERE d.deptno = 'B01')
+WHERE empno = 000090;
+
+UPDATE OREMP
+SET workdept = ( SELECT REF(d) FROM ORDEPT d WHERE d.deptno = 'B01')
+WHERE empno = 000100;
+
+
+
+UPDATE ORDEPT
+SET admrdept = ( SELECT REF(e) FROM OREMP e WHERE e.workdept.deptno = 'A00')
+WHERE deptno = 'A00';
+
+UPDATE ORDEPT
+SET admrdept = ( SELECT REF(e) FROM OREMP e WHERE e.workdept.deptno = 'A00')
+WHERE deptno = 'B01';
+
+UPDATE ORDEPT
+SET admrdept = ( SELECT REF(e) FROM OREMP e WHERE e.workdept.deptno = 'A00')
+WHERE deptno = 'C01';
+
+UPDATE ORDEPT
+SET admrdept = ( SELECT REF(e) FROM OREMP e WHERE e.empno = '000060')
+WHERE deptno = 'D01';
+
+
+
+
+2
+
+SELECT d.deptname, d.mgrno.lastname FROM ORDEPT d;
+/
+
+SELECT e.empno, e.lastname, e.workdept.deptname AS Department
+FROM OREMP e
+/
+
+SELECT d.DEPTNO , d.DEPTNAME , d.ADMRDEPT.DEPTNAME
+FROM ORDEPT d
+/
+
+SELECT d.DEPTNO , d.DEPTNAME , d. ADMRDEPT.DEPTNAME as ADMINT , d.MGRNO.LASTNAME
+FROM ORDEPT d
+/
+
+SELECT e.EMPNO , e.FIRSTNAME, e.LASTNAME , e.SALARY, e.WORKDEPT.MGRNO.LASTNAME,e.WORKDEPT.MGRNO.SALARY
+FROM OREMP e
+/
+
+SELECT d.DEPTNO , d.DEPTNAME , AVG(SELECT d.MGRNO.SEX WHERE (SEX = 'F' OR SEX = 'f'))
+/
+
+SELECT d.deptno, d.deptname, e.sex, AVG(e.salary) AS avg_salary
+FROM OREMP e
+JOIN ORDEPT d ON e.workdept = REF(d)
+GROUP BY d.deptno, d.deptname, e.sex;
+
